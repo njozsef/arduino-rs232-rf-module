@@ -1,3 +1,17 @@
+/*
+This is tranceiver sketch
+ for transmitt command to HomeEasy reseiver send command into terminal
+ genericoff|sender5083278|groupno|recipient10|stateoff|
+ genericon|sender482624|groupno|recipient0|stateoff|
+ 
+ where:
+ genericoff -switch transmitter to homeeasy mode (genericoff;genericon)
+ 5083278 - device ID 
+ groupno - whithout group cpmmand (groupcommand;groupno)
+ recipient10 - (10) button ID
+ stateoff - state (stateon;stateoff)
+ */
+
 int rxPin = 12;
 bool bit2[26]={
 };              // 26 bit global to store the HE device address.
@@ -11,6 +25,7 @@ unsigned long senderS=0;
 boolean groupS = false;
 boolean stateS = false;
 int recipientS = 0;
+boolean GenericProtocol = false;
 void setup()
 {
   pinMode(txPin, OUTPUT);
@@ -18,9 +33,6 @@ void setup()
   Serial.begin(9600);
 
   Serial.println("go");
-  //sender5083278|groupno|recipient10|stateoff|
-  //sender5083278|groupno|recipient10|stateon|
-
 }
 
 void loop()
@@ -30,8 +42,6 @@ void loop()
 
 void Transmitter()
 {
-  //-----------------------------------------------------
-  //дальше передатчи
   // Input serial information:
   if (Serial.available() > 0){
     inByte = Serial.read();
@@ -46,6 +56,12 @@ void Transmitter()
 
   if(inByte == '|')
   {
+    if (command.startsWith("generic"))
+    {
+      command = command.substring(7);
+      GenericProtocol = (command == "on");
+    }
+
     if (command.startsWith("sender"))
     {
       command = command.substring(6);
@@ -75,30 +91,56 @@ void Transmitter()
       transmit(command == "on");            // send ON again
       delay(10);                 // wait (socket ignores us it appears unless we do this)
       transmit(command == "on");            // send ON again
-      //      Serial.println("--------------");
-      //
-      //      Serial.print("sender ");
-      //      Serial.println(senderS, DEC);
-      //
-      //      Serial.print("group ");
-      //      Serial.println(groupS, HEX);
-      //
-      //      Serial.print("recipient ");
-      //      Serial.println(recipientS, DEC);
-      //
-      //      Serial.print("state ");
-      //      Serial.println(command == "on", HEX);
-      //
-      //      Serial.println("--------------");
+//      Serial.println("--------------");
+//
+//      Serial.print("generic ");
+//      Serial.println(GenericProtocol, HEX);
+//
+//      Serial.print("sender ");
+//      Serial.println(senderS, DEC);
+//
+//      Serial.print("group ");
+//      Serial.println(groupS, HEX);
+//
+//      Serial.print("recipient ");
+//      Serial.println(recipientS, DEC);
+//
+//      Serial.print("state ");
+//      Serial.println(command == "on", HEX);
+//
+//      Serial.println("--------------");
     }
     inByte=0;
     command = "";
   }
 }
-void transmit(int blnOn)
+void transmit(boolean blnOn)
 {
-  int i;
+  if (GenericProtocol)
+    transmitGenericData(blnOn);
+  else
+    transmitHEdata(blnOn);
+}
+void transmitGenericData(boolean blnOn)
+{
+  //digitalWrite(txPin, LOW);
+  //delayMicroseconds(8800);     // low for 9900 for latch 1
+  // Send generic command
+  for(int i=6; i<26;i++)
+  {
+    sendGenericBit(bit2[i]);
+  }
 
+  sendGenericBit(blnOn);
+  sendGenericBit(blnOn);
+  sendGenericBit(!blnOn);
+  sendGenericBit(!blnOn);
+  
+  sendGenericBit(recipientS & 1);
+}
+
+void transmitHEdata(boolean blnOn)
+{
   // Do the latch sequence..
   digitalWrite(txPin, HIGH);
   delayMicroseconds(275);     // bit of radio shouting before we start.
@@ -112,14 +154,13 @@ void transmit(int blnOn)
   digitalWrite(txPin, HIGH);
 
   // Send HE Device Address..
-  // e.g. 1000010101000110010  272946 in binary.
-  for(i=0; i<26;i++)
+  for(int i=0; i<26;i++)
   {
     sendPair(bit2[i]);
   }
 
   // Send 26th bit - group 1/0
-  sendPair(false);
+  sendPair(groupS);
 
   // Send 27th bit - on/off 1/0
   sendPair(blnOn);
@@ -138,6 +179,17 @@ void transmit(int blnOn)
 
 }
 
+void sendGenericBit(boolean b) {
+  digitalWrite(txPin, HIGH);
+  delayMicroseconds(250);
+  if(b)
+    digitalWrite(txPin, HIGH);
+  else
+    digitalWrite(txPin, LOW);
+  delayMicroseconds(650);    
+  digitalWrite(txPin, LOW);
+  delayMicroseconds(250);
+}
 
 void sendBit(boolean b) {
   if (b) {
@@ -308,6 +360,10 @@ void printResult(unsigned long senderR, bool groupR, bool onR, unsigned int reci
 
   Serial.print(">"); 
 }
+
+
+
+
 
 
 
